@@ -31,24 +31,39 @@
 #include "foeppl_von_karman.h"
 
 namespace oomph
-{
-//======================================================================
+{ 
+ //=============================================================================
+ /// Set the number of fields
+ //=============================================================================
+ template<unsigned NNODE_1D>
+ const unsigned FoepplVonKarmanC1CurvableBellElement<NNODE_1D>::Nfield = 3;
+
+ 
+ //=============================================================================
+ /// Set the interpolation of each field
+ //=============================================================================
+ template<unsigned NNODE_1D>
+ const std::vector<bool> FoepplVonKarmanC1CurvableBellElement<NNODE_1D>::
+ Field_is_bell_interpolated = {false, false, true};
+
+ 
+ //======================================================================
 /// Set the data for the number of Variables at each node
 //======================================================================
  template<>
- const unsigned FoepplVonKarmanC1CurvedBellElement<2>::Initial_Nvalue[3] = {8,8,8};
+ const unsigned FoepplVonKarmanC1CurvableBellElement<2>::Initial_Nvalue[3] = {8,8,8};
 
  template<>
- const unsigned FoepplVonKarmanC1CurvedBellElement<3>::Initial_Nvalue[6] = {8,8,8,2,2,2};
+ const unsigned FoepplVonKarmanC1CurvableBellElement<3>::Initial_Nvalue[6] = {8,8,8,2,2,2};
  
  template<>
- const unsigned FoepplVonKarmanC1CurvedBellElement<4>::Initial_Nvalue[10]= {8,8,8,2,2,2,2,2,2,2};
+ const unsigned FoepplVonKarmanC1CurvableBellElement<4>::Initial_Nvalue[10]= {8,8,8,2,2,2,2,2,2,2};
 
 //=======================================================================
 /// Shape function for specific TElement<DIM,NNODE,BOUNDARY_ORDER>
 //=======================================================================
  template<unsigned NNODE>
- void FoepplVonKarmanC1CurvedBellElement<NNODE>::shape_u(const Vector<double> &s, Shape &psi) const
+ void FoepplVonKarmanC1CurvableBellElement<NNODE>::shape_u(const Vector<double> &s, Shape &psi) const
    {
     // Use the base TElement version of shape
     TElement<2,NNODE>::shape(s,psi);
@@ -57,7 +72,7 @@ namespace oomph
 /// Derivatives of shape functions for specific TElement<2,2,BOUNDARY_ORDER>
 //=======================================================================
  template<unsigned NNODE>
- void FoepplVonKarmanC1CurvedBellElement<NNODE>::dshape_u_local(const Vector<double> &s,
+ void FoepplVonKarmanC1CurvableBellElement<NNODE>::dshape_u_local(const Vector<double> &s,
                     Shape &psi, DShape &dpsids) const
    {
     // Use the base TElement version of dshape_local
@@ -66,9 +81,9 @@ namespace oomph
 //====================================================================
 // Force build of templates
 //====================================================================
-template class FoepplVonKarmanC1CurvedBellElement<2>;
+template class FoepplVonKarmanC1CurvableBellElement<2>;
 
-template class FoepplVonKarmanC1CurvedBellElement<3>;
+template class FoepplVonKarmanC1CurvableBellElement<3>;
 
-template class FoepplVonKarmanC1CurvedBellElement<4>;
+template class FoepplVonKarmanC1CurvableBellElement<4>;
 }

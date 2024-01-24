@@ -116,7 +116,7 @@ public:
 /*   w,j(ai)             w,tij (ai)              w,j(ahati)                   */
 /*   w,jk(ai)            w,tij tij(ai)           w,jk(ahati)                  */
 /*   w(ei)               w,tkj tjk(ai)           w,n(bi)                      */
-/*   w(ei)               w(ei)                   w(ei)                        */
+/*                       w(ei)                   w(ei)                        */
 /*                                               w(di)                        */
 /*                                               w,n(di)                      */
 /* where tij are the two tangents at node ai and tjk are the two tangents opp-*/
@@ -302,34 +302,34 @@ private:
  Edge Curved_edge;
 
 protected:
-  /*  Protected member functions:                                             */
-  /* These functions are used in the construction of shape - but not intended */
-  /* for use at the user end                                                  */
+ /*  Protected member functions:                                             */
+ /* These functions are used in the construction of shape - but not intended */
+ /* for use at the user end                                                  */
 
-  /// The mapping F_k - a polynomial degree 3 PRIVATE
-  void f_k (const Vector<double>& s, Vector<double>& fk) const;
+ /// The mapping F_k - a polynomial degree 3 PRIVATE
+ void f_k (const Vector<double>& s, Vector<double>& fk) const;
 
-  /// The basic Jacobian PRIVATE
-  void get_basic_jacobian(const Vector<double> s, DenseMatrix<double>& jac)const;
+ /// The basic Jacobian PRIVATE
+ void get_basic_jacobian(const Vector<double> s, DenseMatrix<double>& jac)const;
 
-  /// \short The Hessian of the global coordinate (of the vector mapping) - like 
-  /// a second order Jacobian.
-  /*        d^2 x_i
-      or:   ----------    (rank 3) with x the global coordinate and s the local.
-            d s_i ds_j                                                        */
-  // PRIVATE
-  void get_basic_hessian(const Vector<double>& s,
-    RankThreeTensor<double>& hess) const;
-
+ /// \short The Hessian of the global coordinate (of the vector mapping) - like 
+ /// a second order Jacobian.
+ /*        d^2 x_i
+	   or:   ----------    (rank 3) with x the global coordinate and s the local.
+	   d s_i ds_j                                                        */
+ // PRIVATE
+ void get_basic_hessian(const Vector<double>& s,
+			RankThreeTensor<double>& hess) const;
+ 
   
-  /// Get the edge permutation, without the index shift
-  inline void permute_shape(Vector<double>& s) const;
+ /// Get the edge permutation, without the index shift
+ inline void permute_shape(Vector<double>& s) const;
   
-  /// Get the edge permutation
-  inline void get_jacobian_of_permute(DenseMatrix<double>& jac) const;
+ /// Get the edge permutation
+ inline void get_jacobian_of_permute(DenseMatrix<double>& jac) const;
 
-  /// Get the edge permutation
-  inline void nodal_index_shift(unsigned& index_shift) const;
+ /// Get the edge permutation
+ inline void nodal_index_shift(unsigned& index_shift) const;
 
  // These Vectors are used repeatedly in the construction of the shape functions
  // So are inlined.

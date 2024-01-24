@@ -27,5 +27,5 @@
 //LIC// The authors may be contacted at oomph-lib@maths.man.ac.uk.
 //LIC// 
 //LIC//====================================================================
-#include "foeppl_von_karman_elements.h"
+#include "foeppl_von_karman_equations.h"
 #include "foeppl_von_karman_curved_bell_elements.h"
