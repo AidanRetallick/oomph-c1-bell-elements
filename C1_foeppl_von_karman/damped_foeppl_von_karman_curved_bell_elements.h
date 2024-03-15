@@ -55,6 +55,14 @@ public:
  /// x is a Vector!
  typedef void (*DisplacementFctPt)(const Vector<double>& x, double& f);
 
+ /// Number of vertex nodes
+ unsigned nvertex_node() const
+ { return CurvableBellElement<NNODE_1D>::nvertex_node(); }
+
+ /// Pointer to the i-th vertex node
+ Node* vertex_node_pt(const unsigned &i) const
+ { return CurvableBellElement<NNODE_1D>::vertex_node_pt(i); }
+
  /// \short function to pin all deflection dofs
  void pin_all_deflection_dofs() const;
 
@@ -830,7 +838,7 @@ DisplacementFctPt& specified_displacement_fct_pt)
   if(dof_number >= n_dof_types)
    {
     throw OomphLibError("Foppl von Karman elements only have 2 in-plane displacement degrees\
-of freedom at internal points. They are {w ; w,x ; w,y ; w,xx ; w,xy ; w,yy}",
+of freedom at internal points. They are {ux, uy}",
                         "DampedFoepplVonKarmanC1CurvedBellElement:fix_out_of_plane_dof()",
                         OOMPH_EXCEPTION_LOCATION);
    }

@@ -38,6 +38,7 @@
 #include "../generic/nodes.h"
 #include "../generic/oomph_utilities.h"
 #include "../generic/Telements.h"
+#include "../generic/error_estimator.h"
 
 
 namespace oomph
@@ -51,7 +52,8 @@ namespace oomph
 /// This contains the generic maths. Shape functions, geometric
 /// mapping etc. must get implemented in derived class.
 //=============================================================
-class FoepplVonKarmanEquations : public virtual FiniteElement
+class FoepplVonKarmanEquations
+ : public virtual ElementWithZ2ErrorEstimator
 {
 
 public:
@@ -91,6 +93,7 @@ const unsigned& boundary_number, const PressureFctPt& u)=0;
 // unsigned number_of_internal_dofs() const {return this->nbubble_basis();}
 //
 //
+ 
  // Get the number of nodes of the out-of-plane functions, pure virtual
  virtual unsigned nnode_outofplane() const =  0;
 
@@ -123,9 +126,13 @@ const unsigned& boundary_number, const PressureFctPt& u)=0;
  virtual void pin_all_deflection_dofs() const=0;
 
  /// Constructor (must initialise the Pressure_fct_pt to null)
- FoepplVonKarmanEquations() : Pressure_fct_pt(0),
-   In_plane_forcing_fct_pt(0), Error_metric_fct_pt(0),
-    Multiple_error_metric_fct_pt(0), Association_matrix_pt(0) 
+ FoepplVonKarmanEquations()
+  : ElementWithZ2ErrorEstimator(),
+    Pressure_fct_pt(0),
+    In_plane_forcing_fct_pt(0),
+    Error_metric_fct_pt(0),
+    Multiple_error_metric_fct_pt(0),
+    Association_matrix_pt(0) 
   {
    Eta_pt = &Default_Eta_Value;
    Nu_pt = &Default_Nu_Value;
@@ -359,33 +366,108 @@ const unsigned& boundary_number, const PressureFctPt& u)=0;
     }
   }
 
+ 
+ /// Number of 'flux' terms for Z2 error estimation
+ unsigned num_Z2_flux_terms()
+ {
+  return 3;
+ }
+
+ 
+ /// Get 'flux' for Z2 error recovery:   Upper triangular entries
+ /// in stress tensor.
+ void get_Z2_flux(const Vector<double>& s, Vector<double>& flux)
+ {
+  unsigned dim = this->dim();
+#ifdef PARANOID
+  unsigned num_entries = num_Z2_flux_terms();
+  if (flux.size() != num_entries)
+   {
+    std::ostringstream error_message;
+    error_message << "The flux vector has the wrong number of entries, "
+		  << flux.size() << ", whereas it should be " << num_entries
+		  << std::endl;
+    throw OomphLibError(error_message.str(),
+			OOMPH_CURRENT_FUNCTION,
+			OOMPH_EXCEPTION_LOCATION);
+   }
+#endif
+
+  // Interpolate unknowns to get the displacement gradients
+  Vector<double> u = interpolated_u_foeppl_von_karman(s);
+  DenseMatrix<double> duidxj(dim,dim);
+  DenseMatrix<double> dwdxi(1,dim);
+  // Copy out gradient entries to the containers to pass to get_sigma
+  // [zdec] dont hard code this
+  duidxj(0,0) = u[8];
+  duidxj(0,1) = u[9];
+  duidxj(1,0) = u[10];
+  duidxj(1,1) = u[11];
+  dwdxi(0,0) = u[1];
+  dwdxi(0,1) = u[2];
+  
+  // Get stress matrix
+  DenseMatrix<double> sigma(dim);
+  this->get_sigma(sigma, duidxj, dwdxi);
+
+  // Pack into flux Vector
+  unsigned icount = 0;
+
+  // Start with diagonal terms
+  for (unsigned i = 0; i < dim; i++)
+   {
+    flux[icount] = sigma(i, i);
+    icount++;
+   }
+
+  // Off diagonals row by row
+  for (unsigned i = 0; i < dim; i++)
+   {
+    for (unsigned j = i + 1; j < dim; j++)
+     {
+      flux[icount] = sigma(i, j);
+      icount++;
+     }
+   }
+ }
+
+ 
+ /// Order of recovery shape functions for Z2 error estimation:
+ /// Cubic.
+ unsigned nrecovery_order()
+ {
+  return 3;
+ }
+ 
+
  /// Add the element's contribution to its residual vector (wrapper)
  void fill_in_contribution_to_residuals(Vector<double> &residuals)
-  {
-   //Call the generic residuals function with flag set to 0
-   //using a dummy matrix argument
-   fill_in_generic_residual_contribution_foeppl_von_karman(
-    residuals,GeneralisedElement::Dummy_matrix,0);
-  }
+ {
+  //Call the generic residuals function with flag set to 0
+  //using a dummy matrix argument
+  fill_in_generic_residual_contribution_foeppl_von_karman(
+							  residuals,GeneralisedElement::Dummy_matrix,0);
+ }
 
 
  /// Add the element's contribution to its residual vector and
  /// element Jacobian matrix (wrapper)
  void fill_in_contribution_to_jacobian(Vector<double> &residuals,
-                                   DenseMatrix<double> &jacobian)
-  {
-   //Call the generic routine with the flag set to 1
-   fill_in_generic_residual_contribution_foeppl_von_karman(residuals,jacobian,1);
-  }
+				       DenseMatrix<double> &jacobian)
+ {
+  //Call the generic routine with the flag set to 1
+  fill_in_generic_residual_contribution_foeppl_von_karman(residuals,jacobian,1);
+ }
 
+ 
  /// Add the element's contribution to its residual vector and
  /// element Jacobian matrix (wrapper)
  void fill_in_contribution_to_jacobian_and_mass_matrix(Vector<double> &residuals,
-                                   DenseMatrix<double> &jacobian,DenseMatrix<double> &mass_matrix)
-  {
-   //Call fill in Jacobian 
-   fill_in_contribution_to_jacobian(residuals,jacobian);
-   // There is no mass matrix: we will just want J w = 0
+						       DenseMatrix<double> &jacobian,DenseMatrix<double> &mass_matrix)
+ {
+  //Call fill in Jacobian 
+  fill_in_contribution_to_jacobian(residuals,jacobian);
+  // There is no mass matrix: we will just want J w = 0
 
    // -- COPIED FROM DISPLACMENT FVK EQUATIONS --
    // Dummy diagonal (won't result in global unit matrix but
@@ -396,6 +478,7 @@ const unsigned& boundary_number, const PressureFctPt& u)=0;
      mass_matrix(i,i)+=1.0;
     }
   }
+
 
  /// \short Return FE representation of dw/dt at local coordinate s
  virtual inline Vector<double> interpolated_dwdt_foeppl_von_karman(const Vector<double>& s) const

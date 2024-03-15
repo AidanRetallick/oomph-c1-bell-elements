@@ -281,6 +281,227 @@ private:
 
 };
 
+
+
+
+
+
+ 
+
+/// \short Specialisation of CurvilineGeomObject for half a circle.
+class CurvilineCircleRight : public CurvilineGeomObject
+{
+public:
+ /// \short Constructor: Pass dimension of geometric object (# of Eulerian
+ /// coords = # of Lagrangian coords; no time history available/needed)
+ CurvilineCircleRight() : CurvilineGeomObject(), Radius(1.0), 
+   Clockwise_zeta(false)
+  { }
+
+ /// \short Constructor: Pass dimension of geometric object (# of Eulerian
+ /// coords = # of Lagrangian coords; no time history available/needed)
+ CurvilineCircleRight(const double& cx,
+		      const double& cy,
+		      const double& radius,
+		      const bool& clockwise_zeta=false) : 
+  CurvilineGeomObject(), Cx(cx), Cy(cy), Radius(radius), Clockwise_zeta(clockwise_zeta)
+  { }
+ /// \short Constructor: pass # of Eulerian and Lagrangian coordinates
+ /// and pointer to time-stepper which is used to handle the
+ /// position at previous timesteps and allows the evaluation
+ /// of veloc/acceleration etc. in cases where the GeomData
+ /// varies with time.
+ CurvilineCircleRight(TimeStepper* time_stepper_pt) : CurvilineGeomObject(time_stepper_pt)
+   { }
+
+ /// Broken copy constructor
+ CurvilineCircleRight(const CurvilineCircleRight& dummy) 
+  { 
+   BrokenCopy::broken_copy("CurvilineCircleRight");
+  } 
+ 
+ /// Broken assignment operator
+ void operator=(const CurvilineCircleRight&) 
+  {
+   BrokenCopy::broken_assign("CurvilineCircleRight");
+  }
+
+ /// (Empty) destructor
+ virtual ~CurvilineCircleRight(){}
+
+ /// \short Position Vector w.r.t. to zeta: 
+ virtual void position(const Vector<double>& zeta, 
+                        Vector<double> &r) const
+  { 
+   r[0] = Cx + Radius*std::cos(zeta[0]);
+   r[1] = Cy + Radius*std::sin(zeta[0]);
+   // Zeta -> - Zeta 
+   if(Clockwise_zeta)
+    { r[1]*= -1; }
+  }
+
+ /// \short Derivative of position Vector w.r.t. to zeta: 
+ virtual void dposition(const Vector<double>& zeta, 
+                        Vector<double> &drdzeta) const
+  { 
+   drdzeta[0] =-Radius*std::sin(zeta[0]);  
+   drdzeta[1] = Radius*std::cos(zeta[0]);
+   // Zeta -> - Zeta 
+   if(Clockwise_zeta)
+    { drdzeta[1]*= -1; }
+  }
+
+
+ /// \short 2nd derivative of position Vector w.r.t. to coordinates: 
+ /// \f$ \frac{d^2R_i}{d \zeta_\alpha d \zeta_\beta}\f$ = 
+ /// ddrdzeta(alpha,beta,i). 
+ /// Evaluated at current time.
+ virtual void d2position(const Vector<double>& zeta, 
+                         Vector<double> &drdzeta) const
+  { 
+    drdzeta[0] =-Radius*std::cos(zeta[0]);  
+    drdzeta[1] =-Radius*std::sin(zeta[0]);
+    // Zeta -> - Zeta 
+    if(Clockwise_zeta)
+     { drdzeta[1]*= -1; }
+  }
+
+ // double atan2cust(const double& y, const double& x) const
+ // {
+ //  double result = atan2(y,x);
+ //  if(result<-MathematicalConstants::Pi/2.0)
+ //   {result += 2.0*MathematicalConstants::Pi;}
+ //  return result;
+ // }
+  
+ /// Get s from x for part 0 of the boundary (inverse mapping - for convenience)
+ double get_zeta(const Vector<double>& x) const 
+ {
+  double X=x[0]-Cx;
+  double Y=x[1]-Cy;
+ // The arc length (parametric parameter) for the right semi circular arc
+  return (Clockwise_zeta ? atan2(Y,X) : atan2(Y,X));
+ }
+
+private:
+ double Cx;
+ double Cy;
+ double Radius;
+ bool Clockwise_zeta;
+};
+
+
+ 
+
+/// Specialisation of CurvilineGeomObject for half a circle.
+class CurvilineCircleLeft : public CurvilineGeomObject
+{
+public:
+ /// \short Constructor: Pass dimension of geometric object (# of Eulerian
+ /// coords = # of Lagrangian coords; no time history available/needed)
+ CurvilineCircleLeft() : CurvilineGeomObject(), Radius(1.0), 
+   Clockwise_zeta(false)
+  { }
+
+ /// \short Constructor: Pass dimension of geometric object (# of Eulerian
+ /// coords = # of Lagrangian coords; no time history available/needed)
+ CurvilineCircleLeft(const double& cx,
+		     const double& cy,
+		     const double& radius,
+		     const bool& clockwise_zeta=false) : 
+  CurvilineGeomObject(), Cx(cx), Cy(cy), Radius(radius), Clockwise_zeta(clockwise_zeta)
+  { }
+ /// \short Constructor: pass # of Eulerian and Lagrangian coordinates
+ /// and pointer to time-stepper which is used to handle the
+ /// position at previous timesteps and allows the evaluation
+ /// of veloc/acceleration etc. in cases where the GeomData
+ /// varies with time.
+ CurvilineCircleLeft(TimeStepper* time_stepper_pt) : CurvilineGeomObject(time_stepper_pt)
+   { }
+
+ /// Broken copy constructor
+ CurvilineCircleLeft(const CurvilineCircleLeft& dummy) 
+  { 
+   BrokenCopy::broken_copy("CurvilineCircleLeft");
+  } 
+ 
+ /// Broken assignment operator
+ void operator=(const CurvilineCircleLeft&) 
+  {
+   BrokenCopy::broken_assign("CurvilineCircleLeft");
+  }
+
+ /// (Empty) destructor
+ virtual ~CurvilineCircleLeft(){}
+
+ /// \short Position Vector w.r.t. to zeta: 
+ virtual void position(const Vector<double>& zeta, 
+                        Vector<double> &r) const
+  { 
+   r[0] = Cx + Radius*std::cos(zeta[0]);
+   r[1] = Cy + Radius*std::sin(zeta[0]);
+   // Zeta -> - Zeta 
+   if(Clockwise_zeta)
+    { r[1]*= -1; }
+  }
+
+ /// \short Derivative of position Vector w.r.t. to zeta: 
+ virtual void dposition(const Vector<double>& zeta, 
+                        Vector<double> &drdzeta) const
+  { 
+   drdzeta[0] =-Radius*std::sin(zeta[0]);  
+   drdzeta[1] = Radius*std::cos(zeta[0]);
+   // Zeta -> - Zeta 
+   if(Clockwise_zeta)
+    { drdzeta[1]*= -1; }
+  }
+
+
+ /// \short 2nd derivative of position Vector w.r.t. to coordinates: 
+ /// \f$ \frac{d^2R_i}{d \zeta_\alpha d \zeta_\beta}\f$ = 
+ /// ddrdzeta(alpha,beta,i). 
+ /// Evaluated at current time.
+ virtual void d2position(const Vector<double>& zeta, 
+                         Vector<double> &drdzeta) const
+  { 
+    drdzeta[0] =-Radius*std::cos(zeta[0]);  
+    drdzeta[1] =-Radius*std::sin(zeta[0]);
+    // Zeta -> - Zeta 
+    if(Clockwise_zeta)
+     { drdzeta[1]*= -1; }
+  }
+
+ /// Special atan2 with branch cut at zeta=0 to guarentee continuity on left
+ /// circular arc parameters 
+ double atan2cust(const double& y, const double& x) const
+ {
+  double result = atan2(y,x);
+  if(result<0.0)
+   {result += 2.0*MathematicalConstants::Pi;}
+  return result;
+ }
+  
+ /// Get s from x for part 0 of the boundary (inverse mapping - for convenience)
+ /// where 0<s<2*pi
+ double get_zeta(const Vector<double>& x) const 
+ {
+  double X=x[0]-Cx;
+  double Y=x[1]-Cy;
+ // The arc length (parametric parameter) for the left circular arc
+  return (Clockwise_zeta ? atan2cust(Y,X) : atan2cust(Y,X));
+ }
+
+private:
+ double Cx;
+ double Cy;
+ double Radius;
+ bool Clockwise_zeta;
+};
+
+
+
+
+
 /// \short Specialisation of CurvilineGeomObject for half a circle.
 class CurvilineEllipseTop : public CurvilineGeomObject
 {

@@ -55,16 +55,26 @@ public:
  /// x is a Vector!
  typedef void (*DisplacementFctPt)(const Vector<double>& x, double& f);
 
+ /// Number of vertex nodes
+ unsigned nvertex_node() const
+ { return CurvableBellElement<NNODE_1D>::nvertex_node(); }
+
+ /// Pointer to the i-th vertex node
+ Node* vertex_node_pt(const unsigned &i) const
+ { return CurvableBellElement<NNODE_1D>::vertex_node_pt(i); }
+ 
  /// \short function to pin all deflection dofs
  void pin_all_deflection_dofs() const;
-
+ 
  /// \short function to pin particular out--of--plane displacement dofs
- void fix_out_of_plane_displacement_dof(const unsigned& dof_number, const unsigned& b,
-const DisplacementFctPt& w);
-
+ void fix_out_of_plane_displacement_dof(const unsigned& dof_number,
+					const unsigned& b,
+					const DisplacementFctPt& w);
+ 
  /// \short function to pin particular in--plane displacement dofs
- void fix_in_plane_displacement_dof(const unsigned& dof_number, const unsigned&
-b, const DisplacementFctPt& u);
+ void fix_in_plane_displacement_dof(const unsigned& dof_number,
+				    const unsigned& b,
+				    const DisplacementFctPt& u);
 
  /// \short Function pointer to basis vectors function which sets  basis vectors
  /// b1 and b2 (which are in general functions of x)

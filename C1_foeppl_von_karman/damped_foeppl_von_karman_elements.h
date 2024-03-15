@@ -47,7 +47,8 @@ namespace oomph
 /// This contains the generic maths. Shape functions, geometric
 /// mapping etc. must get implemented in derived class.
 //=============================================================
-class DampedFoepplVonKarmanEquations : public virtual FoepplVonKarmanEquations
+class DampedFoepplVonKarmanEquations
+ : public virtual FoepplVonKarmanEquations
 {
 
 public:
@@ -56,9 +57,15 @@ public:
  /// x is a Vector!
  typedef void (*SwellingFctPt)(const Vector<double>& x, double& f);
 
+ /// \short Function pointer to a scalar prestrain function fct(x,f(x)) --
+ /// x is a Vector!
+ typedef void (*PrestrainFctPt)(const Vector<double>& x, double& f);
+
  /// Constructor (must initialise the Pressure_fct_pt to null)
  DampedFoepplVonKarmanEquations() :
-  FoepplVonKarmanEquations()
+  FoepplVonKarmanEquations(),
+  Prestrain_fct_pt(0),
+  Swelling_fct_pt(0)
  {}
  
  /// Broken copy constructor
@@ -95,6 +102,17 @@ public:
  /// n_plot^DIM plot points
  void output(FILE* file_pt, const unsigned &n_plot);
 
+ 
+ /// Output: x, y, sigma_xx, sigma_xy, sigma_yy,
+ ///         (sigma_1, sigma_2, sigma_1x, sigma1y, sigma2x, sigma2y)
+ ///                                   (if principal_stresses==true)
+ /// at the Gauss integration points to obtain a smooth point
+ /// cloud (stress may be discontinuous across elements in general)
+ void output_smooth_stress(std::ostream &outfile,
+			   const bool &principal_stresses=false);
+
+
+ 
  /// Output exact soln: x,y,u_exact or x,y,z,u_exact at n_plot^DIM plot points
  void output_fct(std::ostream &outfile, const unsigned &n_plot,
                  FiniteElement::SteadyExactSolutionFctPt exact_soln_pt);
@@ -117,7 +135,8 @@ public:
  void get_epsilon(DenseMatrix<double>& epsilon,
 		  const DenseMatrix<double>& grad_u,
 		  const DenseMatrix<double>& grad_w,
-		  const double& c_swell)const
+		  const double& c_swell,
+		  const double& prestrain)const
  {
   // Truncated Green Lagrange strain tensor
   DenseMatrix<double> dummy_epsilon(this->dim(),this->dim(),0.0);
@@ -130,8 +149,8 @@ public:
        + 0.5*grad_u(beta,alpha)
        + 0.5*grad_w(0,alpha)*grad_w(0,beta);
      }
-    // Swelling slack
-    dummy_epsilon(alpha,alpha) -= c_swell;
+    // Swelling & prestrain
+    dummy_epsilon(alpha,alpha) += prestrain - c_swell;
     
    }
   epsilon=dummy_epsilon;
@@ -141,14 +160,15 @@ public:
  void get_sigma(DenseMatrix<double>& sigma,
 		const DenseMatrix<double>& grad_u,
 		const DenseMatrix<double>& grad_w,
-		const double c_swell)const
+		const double c_swell,
+		const double prestrain)const
  {
   // Get the Poisson ratio
   double nu(get_nu());
 
   // Truncated Green Lagrange strain tensor
   DenseMatrix<double> epsilon(this->dim(),this->dim(),0.0);
-  get_epsilon(epsilon, grad_u, grad_w, c_swell);
+  get_epsilon(epsilon, grad_u, grad_w, c_swell, prestrain);
    
   // Now construct the Stress
   for(unsigned alpha=0;alpha<this->dim();++alpha)
@@ -165,7 +185,7 @@ public:
      }
    }
  }
-
+ 
  // TODO: Fix this function to use index loops
  /// Fill in the stress tensor using a precalculated epsilon
  void get_sigma_from_epsilon(DenseMatrix<double>& sigma,
@@ -195,26 +215,75 @@ public:
   double s01 = sigma(0,1);
   double s11 = sigma(1,1);
 
-  // Calculate the principal stress magnitudes
-  eigenvals[0] =
-   0.5 * ( (s00 + s11) + sqrt((s00+s11)*(s00+s11) - 4.0*(s00*s11-s01*s01)) );
-  eigenvals[1] =
-   0.5 * ( (s00 + s11) - sqrt((s00+s11)*(s00+s11) - 4.0*(s00*s11-s01*s01)) );
 
-  // Handle the shear free case
+  // Handle the shear free case (sorted so max is first and min is second)
   if(s01==0.0)
    {
-    eigenvecs(0,0)=1.0;
-    eigenvecs(1,0)=0.0;
-    eigenvecs(0,1)=0.0;
-    eigenvecs(1,1)=1.0;
+    // If x-stress is larger make it the first principal stress.
+    if(s00>=s11)
+     {
+      eigenvals[0] = s00;
+      eigenvals[1] = s11;
+      eigenvecs(0,0)=1.0;
+      eigenvecs(1,0)=0.0;
+      eigenvecs(0,1)=0.0;
+      eigenvecs(1,1)=1.0;
+     }
+    // else make y-stress the first principal stress.
+    else
+     {
+      eigenvals[0] = s11;
+      eigenvals[1] = s00;
+      eigenvecs(0,0)=0.0;
+      eigenvecs(1,0)=1.0;
+      eigenvecs(0,1)=1.0;
+      eigenvecs(1,1)=0.0;      
+     }
    }
   
+  // If there is shear stress calculate the principal stresses.
   else
    {
-    // TODO: better (more general) sign choice for streamlines
+#ifdef PARANOID
+    // Check that the discriminant of the characteristic polynomial of stress is
+    // non-negative to within some tolerance.
+    double neg_tol = -1.0e-10;
+    double discriminant = (s00+s11)*(s00+s11) - 4.0*(s00*s11-s01*s01);
 
-    // For max eval we choose y-positive evecs (suited to swelling sheet
+    // If discriminant is less than tolerance then throw an error
+    if (discriminant<neg_tol)
+     {
+      std::ostringstream error_stream;
+      error_stream << "When calculating the principal stresses (eigenvalues of"
+		   << " the stress tensor), the discriminant of the"
+		   << " characteristic polynomial was " << discriminant
+		   << " which is negative." << std::endl;
+      throw OomphLibError(error_stream.str(),
+			  OOMPH_CURRENT_FUNCTION,
+			  OOMPH_EXCEPTION_LOCATION);
+     }
+    // // Else if discriminant is greater than tolerance but still negative
+    // // then throw a warning
+    // else if (discriminant<0.0)
+    //  {
+    //   std::ostringstream error_stream;
+    //   error_stream << "Careful, when calculating the principal stresses "
+    //                << "(eigenvalues of the stress tensor), the discriminant "
+    // 		   << "of the characteristic polynomial was " << discriminant
+    // 		   << " which is negative." << std::endl;
+    //   OomphLibWarning(error_stream.str(),
+    // 		      OOMPH_CURRENT_FUNCTION,
+    // 		      OOMPH_EXCEPTION_LOCATION);
+    //  }
+#endif
+    // We take the fabs() "floating point absolute" before sqrt() to catch
+    // small negative FP errors.
+    eigenvals[0] =
+     0.5 * ( (s00 + s11) + sqrt(fabs((s00+s11)*(s00+s11) - 4.0*(s00*s11-s01*s01))) );
+    eigenvals[1] =
+     0.5 * ( (s00 + s11) - sqrt(fabs((s00+s11)*(s00+s11) - 4.0*(s00*s11-s01*s01))) );
+
+    // For max eval we choose y-positive evecs (suited to Benjamins sheet
     // problem)
     double sign = (eigenvals[0]-s00<0.0) ? -1.0 : 1.0;
     // Calculate the normalised principal stress direction for eigenvals[0]
@@ -223,7 +292,7 @@ public:
     eigenvecs(1,0) =
      sign * ((eigenvals[0]-s00) / sqrt(s01*s01 + (eigenvals[0]-s00)*(eigenvals[0]-s00)));
 
-    // For min eval we choose x-positive evecs (suited to swelling sheet
+    // For min eval we choose x-positive evecs (suited to Benjamins sheet
     // problem)
     sign = (s01<0.0) ? -1.0 : 1.0;
     // Calculate the normalised principal stress direction for eigenvals[1]
@@ -234,17 +303,41 @@ public:
    }
  }
  
+ /// Access function: Pointer to prestrain function
+ PrestrainFctPt& prestrain_fct_pt() {return Prestrain_fct_pt;}
+ 
+ /// Access function: Pointer to prestrain function. Const version
+ PrestrainFctPt prestrain_fct_pt() const {return Prestrain_fct_pt;}
+ 
  /// Access function: Pointer to swelling function
  SwellingFctPt& swelling_fct_pt() {return Swelling_fct_pt;}
-
+ 
  /// Access function: Pointer to swelling function. Const version
  SwellingFctPt swelling_fct_pt() const {return Swelling_fct_pt;}
-
+ 
+ /// Get swelling at (Eulerian) position x. This function is
+ /// virtual to allow overloading.
+ inline virtual void get_prestrain(const unsigned& ipt,
+				   const Vector<double>& x,
+				   double& epsilon_0) const
+  {
+   //If no prestrain function has been set, return zero
+   if(Prestrain_fct_pt==0)
+    {
+     epsilon_0 = 0.0;
+    }
+   else
+    {
+     // Get prestrain magnitude
+     (*Prestrain_fct_pt)(x,epsilon_0);
+    }
+  }
+ 
  /// Get swelling at (Eulerian) position x. This function is
  /// virtual to allow overloading.
  inline virtual void get_swelling_foeppl_von_karman(const unsigned& ipt,
-                                        const Vector<double>& x,
-                                        double& swelling) const
+						    const Vector<double>& x,
+						    double& swelling) const
   {
    //If no swelling function has been set, return zero
    if(Swelling_fct_pt==0)
@@ -258,6 +351,77 @@ public:
     }
   }
 
+ 
+ /// Number of 'flux' terms for Z2 error estimation
+ unsigned num_Z2_flux_terms()
+ {
+  return 3;
+ }
+ 
+
+ /// Get 'flux' for Z2 error recovery:   Upper triangular entries
+ /// in stress tensor.
+ void get_Z2_flux(const Vector<double>& s, Vector<double>& flux)
+ {
+  unsigned dim = this->dim();
+#ifdef PARANOID
+  unsigned num_entries = num_Z2_flux_terms();
+  if (flux.size() != num_entries)
+   {
+    std::ostringstream error_message;
+    error_message << "The flux vector has the wrong number of entries, "
+		  << flux.size() << ", whereas it should be " << num_entries
+		  << std::endl;
+    throw OomphLibError(error_message.str(),
+			OOMPH_CURRENT_FUNCTION,
+			OOMPH_EXCEPTION_LOCATION);
+   }
+#endif
+  
+  // Interpolate unknowns to get the displacement gradients
+  Vector<double> u = interpolated_u_foeppl_von_karman(s);
+  DenseMatrix<double> duidxj(dim,dim);
+  DenseMatrix<double> dwdxi(1,dim);
+  
+  // Copy out gradient entries to the containers to pass to get_sigma
+  // [zdec] dont hard code this
+  duidxj(0,0) = u[8];
+  duidxj(0,1) = u[9];
+  duidxj(1,0) = u[10];
+  duidxj(1,1) = u[11];
+  dwdxi(0,0) = u[1];
+  dwdxi(0,1) = u[2];
+  
+  // Get global x
+  Vector<double> x(dim);
+  interpolated_x(s,x);
+  
+  // Get degree of swelling and prestrain at x
+  double C;
+  double e0;
+  get_swelling_foeppl_von_karman(0, x, C);
+  get_prestrain(0, x, e0);
+  
+  // Get stress matrix
+  DenseMatrix<double> epsilon(dim);
+  DenseMatrix<double> sigma(dim);
+  this->get_epsilon(epsilon, duidxj, dwdxi, C, e0);
+  this->get_sigma_from_epsilon(sigma, epsilon);
+  
+  flux[0] = sigma(0,0);
+  flux[1] = sigma(0,1);
+  flux[2] = sigma(1,1);
+ }
+ 
+
+ /// Order of recovery shape functions for Z2 error estimation:
+ /// Cubic.
+ unsigned nrecovery_order()
+ {
+  return 3;
+ }
+ 
+ 
  /// Add the element's contribution to its residual vector (wrapper)
  void fill_in_contribution_to_residuals(Vector<double> &residuals)
   {
@@ -308,6 +472,9 @@ protected:
  virtual void fill_in_generic_residual_contribution_damped_foeppl_von_karman(
   Vector<double> &residuals, DenseMatrix<double> &jacobian,
   const unsigned& flag);
+ 
+ /// Pointer to prestrain function:
+ PrestrainFctPt Prestrain_fct_pt; 
  
  /// Pointer to swelling function:
  SwellingFctPt Swelling_fct_pt; 
